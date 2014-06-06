@@ -58,37 +58,6 @@ module.exports = function() {
                 req.io.respond(rooms);
             });
         },
-        users: function(req) {
-            var id = req.data;
-            models.room.findById(id, function(err, room) {
-                if (err) {
-                    // Herpderp
-                    console.error(err);
-                    return;
-                }
-                if (!room) {
-                    // Invalid room!
-                    console.error('No room!');
-                    req.io.respond();
-                    return;
-                }
-                var ids = _.map(app.io.sockets.clients(id), function(client) {
-                    return client.handshake.session.userID;
-                });
-                models.user.find({
-                    _id: {
-                        $in: ids
-                    }
-                }, function(err, users) {
-                    if (err) {
-                        // Something bad happened
-                        console.log(err);
-                        return;
-                    }
-                    req.io.respond(users);
-                });
-            })
-        },
         update: function(req) {
             var id = req.data.id,
                 name = req.data.name,
@@ -140,6 +109,9 @@ module.exports = function() {
             var id = req.data;
             req.io.leave(id);
             req.io.respond();
-        },
+        }
+    });
+    app.io.route('disconnect', function(req, res) {
+        req.io.route('rooms:leave');
     });
 }

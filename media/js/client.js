@@ -105,7 +105,10 @@
             that.getMessages({
                 room: room.id,
                 limit: 480
-            }, _.bind(that.addMessages, that))
+            }, _.bind(that.addMessages, that));
+            that.getUsers({
+                room: room.id
+            }, _.bind(that.addUsers, that))
             // Do we want to switch?
             if (switchRoom) {
                 that.rooms.current.set('id', id);
@@ -148,6 +151,25 @@
     }
     Client.prototype.getMessages = function(query, callback) {
         this.socket.emit('messages:list', query, callback)
+    }
+    //
+    // Users
+    //
+    Client.prototype.addUser = function(user) {
+        var room = this.rooms.get(user.room);
+        if (!room || !user) {
+            // Unknown room, nothing to do!
+            return;
+        }
+        room.users.add(user);
+    }
+    Client.prototype.addUsers = function(users) {
+        _.each(users, function(user) {
+            this.addUser(user);
+        }, this);
+    }
+    Client.prototype.getUsers = function(id, callback) {
+        this.socket.emit('users:list', id, callback)
     }
     //
     // Router Setup
