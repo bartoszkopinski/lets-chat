@@ -27,11 +27,11 @@ var models = require('./models/models.js');
 
 // TODO: We should require login on all routes
 var requireLogin = function(req, res, next) {
-    if (req.isAuthenticated()) {
+    // if (req.isAuthenticated()) {
         next();
-    } else {
-        res.redirect('/login?next=' + req.path);
-    }
+    // } else {
+        // res.redirect('/login?next=' + req.path);
+    // }
 };
 
 //
@@ -47,8 +47,8 @@ var Server = function(config) {
     self.mongoURL = self.config.db_url || 'mongodb://'
         + self.config.db_user
         + ':' + self.config.db_password
-        + '@' + self.config.db_host 
-        + ':' + self.config.db_port 
+        + '@' + self.config.db_host
+        + ':' + self.config.db_port
         + '/' + self.config.db_name;
 
     // Create express app
@@ -71,7 +71,7 @@ var Server = function(config) {
             key: 'express.sid',
             cookie: {
                 httpOnly: false // We have to turn off httpOnly for websockets
-            }, 
+            },
             secret: self.config.cookie_secret,
             store: self.sessionStore
         }));
@@ -98,81 +98,18 @@ var Server = function(config) {
 
     });
 
-    // Authentication
-    passport.use(new LocalStrategy({
-            usernameField: 'email',
-            passwordField: 'password'
-        },
-        function(email, password, done) {
-            models.user.findOne({
-                'email': email
-            }).exec(function(err, user) {
-                if (err) {
-                    return done(null, false,  { message: 'Some fields did not validate.' });
-                }
-                var hashedPassword = hash.sha256(password, self.config.password_salt)
-                if (user && hashedPassword === user.password) {
-                    return done(null, user);
-                } else {
-                    return done(null, false, { message: 'Incorrect password.' });
-                }
-            });
-        }
-    ));
-    passport.serializeUser(function(user, done) {
-        done(null, user._id);
-    });
-    passport.deserializeUser(function(id, done) {
-        models.user.findOne({
-            _id: id 
-        }).exec(function(err, user) {
-            done(err, user);
-        });
-    });
-
     //
     // Chat
     //
     self.app.get('/', requireLogin, function(req, res) {
-        var user = req.user;
         var vars = {
             media_url: self.config.media_url,
             host: self.config.hostname,
             port: self.config.port,
-            user_id: user._id,
-            user_email: user.email,
-            user_avatar: hash.md5(user.email),
-            user_displayname: user.displayName,
-            user_lastname: user.lastName,
-            user_firstname: user.firstName,
-            user_status: user.status
         }
         res.render('chat.html', vars);
     });
 
-    //
-    // Login
-    //
-    self.app.get('/login', function(req, res) {
-        var image = _.chain(fs.readdirSync(path.resolve('media/img/photos'))).filter(function(file){
-                return /\.(gif|jpg|jpeg|tiff|png)$/i.test(file);
-            }).sample().value();
-        res.render('login.html', {
-            media_url: self.config.media_url,
-            next: req.param('next', ''),
-            disableRegistration: self.config.disable_registration,
-            photo: image
-        });;
-    });
-
-    //
-    // Logout
-    //
-    self.app.all('/logout', function(req, res) {
-        req.logout();
-        req.session.destroy();
-        res.redirect('/');
-    });
 
     //
     // Serve Plugins
@@ -192,188 +129,6 @@ var Server = function(config) {
     //
     self.app.namespace('/ajax', function() {
         //
-        // Login
-        //
-        self.app.post('/login', function(req, res) {
-            passport.authenticate('local', function(err, user, info) {
-                if (err) {
-                    res.send({
-                        status: 'error',
-                        message: 'Some fields did not validate',
-                        errors: err
-                    });
-                    return;
-                }
-                if (!user) {
-                    res.send({
-                        status: 'error',
-                        message: 'Incorrect login credentials.'
-                    });
-                    return;
-                }
-                req.login(user, function(err) {
-                    if (err) {
-                        res.send({
-                            status: 'error',
-                            message: 'There were problems logging you in.'
-                        });
-                        return;
-                    }
-                    res.send({
-                        status: 'success',
-                        message: 'Logging you in...'
-                    });
-                });
-            })(req, res);
-        });
-        //
-        // Register
-        //
-        self.app.post('/register', function(req, res) {
-            if (self.config.disable_registration) {
-                // Registration is not enabled bro
-                res.send(403, {
-                    status: 'error',
-                    message: 'Registration is disabled.'
-                });
-                return;
-            }
-            var form = req.body;
-            models.user.findOne({ 'email': form.email }).exec(function(error, user) {
-                // Check if a user with this email exists
-                if (user) {
-                    res.send({
-                        status: 'error',
-                        message: 'That email is already in use.'
-                    });
-                    return;
-                }
-                // We're good, lets save!
-                var user = new models.user({
-                    email: form.email,
-                    password: form.password,
-                    firstName: form['first-name'],
-                    lastName: form['last-name'],
-                    displayName: form['first-name'] + ' ' + form['last-name']
-                }).save(function(err, user) {
-                    if (err) {
-                        res.send({
-                            status: 'error',
-                            message: 'Some fields did not validate',
-                            errors: err
-                        });
-                        return;
-                    }
-                    req.login(user, function(err) {
-                        if (err) {
-                            res.send({
-                                status: 'error',
-                                message: 'There were problems logging you in.'
-                            });
-                            return;
-                        }
-                        res.send({
-                            status: 'success',
-                            message: 'You\'ve been successfully registered.'
-                        });
-                    });
-                });
-            });
-        });
-        //
-        // Edit Profile
-        //
-        self.app.post('/profile', function(req, res) {
-            var form = req.body;
-            var profile = models.user.findOne({
-                _id: req.user._id
-            }).exec(function(err, user) {
-                if (err) {
-                    // Well shit
-                    res.send({
-                        status: 'error',
-                        message: 'Unable to update your profile.'
-                    });
-                    return;
-                }
-                // Only grab the fields we need
-                _.each({
-                    displayName: form['display-name'],
-                    firstName: form['first-name'],
-                    lastName: form['last-name']
-                }, function(value,  field) {
-                    if (value && value.length > 0) {
-                        user[field] = value;
-                    }
-                });
-                user.status = form['status'];
-                user.save(function(err) {
-                    if (err) {
-                        res.send({
-                            status: 'error',
-                            message: 'An error occured while updating your profile.',
-                            errors: err
-                        });
-                        return;
-                    }
-                    // Let the socket clients know
-                    self.chatServer.updateUser(user);
-                    // Aww yea
-                    res.send({
-                        status: 'success',
-                        message: 'Your profile has been saved.'
-                    });
-                });
-            });
-        });
-        //
-        // Account Settings
-        //
-        self.app.post('/account', requireLogin, function(req, res) {
-            var form = req.body;
-            var profile = models.user.findOne({
-                _id: req.user._id
-            }).exec(function(err, user) {
-                if (err) {
-                    res.send({
-                        status: 'error',
-                        message: 'Unable to update your account.'
-                    });
-                    return;
-                }
-                // Is the password good?
-                if (hash.sha256(form.password, self.config.password_salt) !== user.password) {
-                    res.send({
-                        status: 'error',
-                        message: 'Incorrect password.'
-                    });
-                    return;
-                }
-                // Do we have a new email?
-                if (form.email.length > 0) {
-                    user.email = form.email;
-                }
-                // How about a new password?
-                if (form['new-password'].length > 0) {
-                    user.password = form['new-password'];
-                }
-                user.save(function(err) {
-                    if (err) {
-                        res.send({
-                            status: 'error',
-                            message: 'An error occured while updating your account.',
-                            errors: err
-                        });
-                        return;
-                    }
-                    res.send({
-                        status: 'success',
-                        message: 'Your account has been updated.'
-                    });
-                });
-            });
-        });
-        //
         // File uploadin'
         // TODO: Some proper error handling
         self.app.post('/upload-file', requireLogin, function(req, res) {
@@ -388,7 +143,6 @@ var Server = function(config) {
             _.each(req.files, function(file) {
                 var roomID = req.body.room;
                 var file = file[0];
-                var owner = req.user;
                 var allowed_file_types = self.config.allowed_file_types;
 
                 // Check MIME Type
@@ -399,7 +153,7 @@ var Server = function(config) {
                     });
                     return;
                 }
-                
+
                 // Lets see if this room exists
                 models.room.findOne({
                     '_id': roomID
@@ -423,7 +177,6 @@ var Server = function(config) {
 
                     // Save the file if all is well
                     new models.file({
-                        owner: owner._id,
                         name: file.name,
                         type: file.type,
                         size: file.size,
@@ -474,16 +227,15 @@ var Server = function(config) {
                                 type: savedFile.type,
                                 size: Math.floor(savedFile.size / 1024),
                                 uploaded: savedFile.uploaded,
-                                owner: owner.displayName,
                                 room: room._id
                             });
                             res.send({
                                 status: 'success',
                                 message: savedFile.name + ' has been saved!',
                                 url: url
-                            }); 
+                            });
                         });
-                    });  
+                    });
 
                 });
             });
@@ -541,22 +293,17 @@ var Server = function(config) {
             models.message.find({
                 room: room._id
             }).select('-room -__v')
-            .populate('owner')
             .where('posted').gt(fromDate).lt(moment(new Date(toDate)).add('d', 1))
             .exec(function(err, docs) {
                 if (err) {
                     // Whoopsie
                     return;
                 }
-                var user = req.user;
                 // Let's process some messages
                 var messages = [];
                 docs.forEach(function (message) {
                     messages.push({
                         id: message._id,
-                        owner: message.owner._id,
-                        avatar: hash.md5(message.owner.email),
-                        name: message.owner.displayName,
                         text: message.text,
                         posted: message.posted,
                         time: moment(message.posted).format('hh:mm DD-MM-YYYY')
@@ -571,15 +318,7 @@ var Server = function(config) {
                         name: room.name,
                         description: room.description
                     },
-                    messages: messages,
-                    user: {
-                        id: user._id,
-                        firstName: user.firstName,
-                        lastName: user.lastName,
-                        displayName: user.displayName,
-                        avatar: hash.md5(user.email),
-                        safeName: user.displayName.replace(/\W/g, '')
-                    }
+                    messages: messages
                 });
             });
         });

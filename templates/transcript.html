@@ -13,7 +13,6 @@
     <script type="text/javascript">
         $(function() {
             var transcript = new TranscriptView({
-                user: window.app.user,
                 room: window.app.room,
                 messages: window.app.messages
             });
@@ -39,7 +38,6 @@
     {% include "js-templates.html" %}
     <script type="text/javascript">
         window.app = {};
-        window.app.user = $.parseJSON('{{ user|json_encode|e("js") }}');
         window.app.room = $.parseJSON('{{ room|json_encode|e("js") }}');
         window.app.messages = $.parseJSON('{{ messages|json_encode|e("js") }}');
     </script>

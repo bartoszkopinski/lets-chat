@@ -1,10 +1,3 @@
-var UserModel = Backbone.Model.extend({
-});
-
-var UsersCollection = Backbone.Collection.extend({
-    model: UserModel
-});
-
 var MessageModel = Backbone.Model.extend({
 });
 
@@ -22,7 +15,6 @@ var FilesCollection = Backbone.Collection.extend({
 var RoomModel = Backbone.Model.extend({
     initialize: function() {
         this.messages = new MessagesCollection();
-        this.users = new UsersCollection();
         this.files = new FilesCollection();
     }
 });

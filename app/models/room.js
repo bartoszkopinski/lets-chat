@@ -12,18 +12,9 @@ var RoomSchema = new Schema({
         type: String,
         trim: true
     },
-    owner: {
-		type: Schema.ObjectId,
-		ref: 'User',
-        required: true
-    },
-	admins: [{
-		type: Schema.ObjectId,
-		ref: 'User' 
-	}],
 	messages: [{
 		type: Schema.ObjectId,
-		ref: 'Message' 
+		ref: 'Message'
 	}],
     created: {
         type: Date,

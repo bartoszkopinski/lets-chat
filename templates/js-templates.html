@@ -10,27 +10,16 @@
         </li>
     </script>
     <script id="js-tmpl-message" type="text/html">
-        <li class="message {{#fragment}} fragment{{/fragment}} {{#own}} own{{/own}} {{#mentioned}} mentioned{{/mentioned}} {{#paste}} paste{{/paste}}" data-id="{{id}}" data-owner="{{owner}}" data-posted="{{posted}}" data-room="{{room}}">
-            <div class="side">
-                <img class="avatar" src="https://www.gravatar.com/avatar/{{avatar}}?s=50" />
-            </div>
+        <li class="message {{#fragment}} fragment{{/fragment}} {{#own}} own{{/own}} {{#mentioned}} mentioned{{/mentioned}} {{#paste}} paste{{/paste}}" data-id="{{id}}" data-posted="{{posted}}" data-room="{{room}}">
             <div class="meta">
                 <div class="top">
-                    <div class="name">{{name}}</div>
                     <time>{{ time }}</time>
-                </div>
-                <div class="text">
-                    {{^paste}}{{ text }}{{/paste}} 
-                    {{#paste}}<pre>{{ text }}</pre>{{/paste}}
+                    <div class="text">
+                        {{^paste}}{{ text }}{{/paste}}
+                        {{#paste}}<pre>{{ text }}</pre>{{/paste}}
+                    </div>
                 </div>
             </div>
-        </li>
-    </script>
-    <script id="js-tmpl-user-item" type="text/html">
-        <li class="user {{#status}}has-status{{/status}}" data-id="{{id}}" data-uid="{{uid}}">
-            <img class="avatar" src="https://www.gravatar.com/avatar/{{avatar}}?s=50" />
-            <span class="name">{{name}}</span>
-            <span class="status" title="{{status}}">{{status}}</span>
         </li>
     </script>
     <script id="js-tmpl-file-item" type="text/html">
@@ -38,7 +27,7 @@
             <a href="{{url}}" class="icon"><i class="icon-file-alt"></i></a>
             <div class="meta">
                 <a class="name" href="{{url}}" target="_blank">{{name}}</a>
-                <span class="owner">{{owner}}</span> &middot; <span class="size">{{size}}kb</span>
+                <span class="size">{{size}}kb</span>
             </div>
         </li>
     </script>
@@ -46,16 +35,10 @@
         <li class="room" data-id="{{ id }}" data-last-active="{{ lastActive }}">
             <a class="name" href="#!/room/{{ id }}">{{ name }}</a>
             <p class="description">{{ description }}</p>
-            <ul class="users"></ul>
             <div class="last-active">
                 <i class="icon-time icon-white"></i>
                 <span class="value">{{ lastActive }}</span>
             </div>
-        </li>
-    </script>
-    <script id="js-tmpl-room-list-user" type="text/html">
-        <li class="user" data-id="{{ id }}" data-uid="{{ uid }}">
-            <img src="https://www.gravatar.com/avatar/{{avatar}}?s=50" alt="{{ name }}" title="{{ name }}" />
         </li>
     </script>
     <script id="js-tmpl-room" type="text/html">
@@ -85,16 +68,6 @@
                             <i class="icon-pencil"></i>
                         </button>
                     </div>
-                </div>
-                <div class="item-list">
-                    <div class="top">
-                        <h3>
-                            <i class="icon-white icon-user"></i>
-                            <span class="text">Who's here</span>
-                            (<span class="count"></span>)
-                        </h3>
-                    </div>
-                    <ul class="user-list"></ul>
                 </div>
                 <div class="files item-list file-drop-zone">
                     <div class="top">

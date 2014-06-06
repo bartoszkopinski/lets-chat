@@ -18,11 +18,6 @@ var Client = function(config) {
     this.notifications = _.extend({}, Backbone.Events);
 
     //
-    // Client User
-    //
-    this.user = new UserModel();
-
-    //
     // Available Rooms Collections
     //
     this.availableRooms = new AvailableRoomsCollection();
@@ -37,7 +32,6 @@ var Client = function(config) {
     //
     this.view = new ClientView({
         config: this.config,
-        user: this.user,
         availableRooms: this.availableRooms,
         rooms: this.rooms,
         notifications: this.notifications,
@@ -51,15 +45,10 @@ var Client = function(config) {
         self.socket.emit('room:join', id, function(room) {
             var existingRoom = self.rooms.get(id);
             if (existingRoom) {
-                existingRoom.users.reset();
                 var lastMessageModel = existingRoom.messages.at(existingRoom.messages.length - 1);
             } else {
                 self.rooms.add(room);
             }
-            // Get room data
-            self.getRoomUsers({
-                room: id
-            });
             // Do we need to resync?
             if (lastMessageModel && lastMessageModel.id) {
                 self.getRoomHistory({
@@ -123,37 +112,10 @@ var Client = function(config) {
     this.getRoomHistory = function(query, callback) {
         self.socket.emit('room:messages:get', query, callback || false);
     }
-    this.getRoomUsers = function(options) {
-        self.socket.emit('room:users:get', {
-            room: options.room
-        });
-    }
     this.getRoomFiles = function(options) {
         self.socket.emit('room:files:get', {
             room: options.room
         });
-    }
-    this.addUser = function(data) {
-        var add = function(user) {
-            var room = self.rooms.get(user.room);
-            if (room)
-                room.users.add(user);
-        }
-        if ($.isArray(data)) {
-            _.each(data, add);
-        } else {
-            add(data);
-        }
-    }
-    this.updateUser = function(user) {
-        self.notifications.trigger('updateuser', user);
-    }
-    this.removeUser = function(user) {
-        var room = self.rooms.get(user.room);
-        if (room) {
-            var user = room.users.get(user.id)
-            room.users.remove(user);
-        }
     }
     this.addFile = function(file) {
         var room = self.rooms.get(file.room);
@@ -212,7 +174,6 @@ var Client = function(config) {
             // Reset keeps available rooms in sync
             self.availableRooms.reset();
             // Grab global data
-            self.socket.emit('user:whoami');
             self.socket.emit('rooms:get');
             // If we have rooms we'll need to rejoin
             if (self.rooms.length > 0) {
@@ -225,20 +186,8 @@ var Client = function(config) {
         self.socket.on('disconnect', function() {
             self.notifications.trigger('disconnect');
         });
-        self.socket.on('user:whoami', function(profile) {
-            self.user.set(profile);
-        });
-        self.socket.on('user:update', function(profile) {
-            self.updateUser(profile);
-        });
         self.socket.on('room:messages:new', function(message) {
             self.addMessage(message);
-        });
-        self.socket.on('room:users:new', function(user) {
-            self.addUser(user);
-        });
-        self.socket.on('room:users:leave', function(user) {
-            self.removeUser(user);
         });
         self.socket.on('room:files:new', function(file) {
             self.addFile(file);
@@ -262,18 +211,6 @@ var Client = function(config) {
         });
         self.socket.on('rooms:remove', function(room) {
             self.availableRooms.remove(room);
-        });
-        self.socket.on('rooms:users:new', function(user) {
-            var room = self.availableRooms.get(user.room)
-            if (room) {
-                room.users.add(user);
-            }
-        });
-        self.socket.on('rooms:users:leave', function(user) {
-            var room = self.availableRooms.get(user.room)
-            if (room) {
-                room.users.remove(room.users.get(user.id));
-            }
         });
     }
 

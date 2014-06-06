@@ -19,7 +19,6 @@ var RoomListView = Backbone.View.extend({
         var self = this;
         this.$list = this.$('.room-list');
         this.template = $('#js-tmpl-room-list-item').html();
-        this.userTemplate = $('#js-tmpl-room-list-user').html();
         this.collection = this.options.collection;
         this.collection.bind('add', function(room) {
             self.add(_.extend(room.toJSON(), {
@@ -32,27 +31,6 @@ var RoomListView = Backbone.View.extend({
                 self.updateRoom(_.extend(room.toJSON(), {
                     lastActive: moment(room.get('lastActive')).calendar()
                 }));
-            });
-            //
-            //  User events
-            //
-            room.users.bind('add', function(user, users) {
-                var matches = users.where({
-                    uid: user.get('uid'),
-                    room: user.get('room')
-                })
-                if (matches.length == 1) {
-                    self.addUser(user.toJSON());
-                }
-            });
-            room.users.bind('remove', function(user, users) {
-                var matches = users.where({
-                    uid: user.get('uid'),
-                    room: user.get('room')
-                })
-                if (matches.length < 1) {
-                    self.removeUser(user.toJSON());
-                }
             });
         });
         this.collection.bind('remove', function(room) {
@@ -76,16 +54,6 @@ var RoomListView = Backbone.View.extend({
     },
     remove: function(id) {
         this.$('.room[data-id=' + id + ']').remove();
-        this.updateMasonry();
-    },
-    addUser: function(user) {
-        var html = Mustache.to_html(this.userTemplate, user);
-        this.$('.room[data-id=' + user.room + '] .users').prepend(html);
-        this.updateMasonry();
-    },
-    removeUser: function(user) {
-        this.$('.room[data-id=' + user.room + ']')
-          .find('.user[data-uid=' + user.uid + ']').remove();
         this.updateMasonry();
     },
     updateRoom: function(room) {
@@ -115,72 +83,6 @@ var RoomListView = Backbone.View.extend({
     },
     empty: function() {
         this.$list.empty();
-    }
-});
-
-//
-// Userlist
-//
-var UserListView = Backbone.View.extend({
-    initialize: function() {
-        var self = this;
-        this.template = $('#js-tmpl-user-item').html();
-        this.model.bind('add remove', function(users, users) {
-            self.count(_.uniq(_.pluck(users.toJSON(), 'uid')).length);
-        });
-        this.model.bind('add', function(user, users) {
-            var matches = users.where({
-                uid: user.get('uid'),
-                room: user.get('room')
-            })
-            if (matches.length == 1) {
-                self.add(user.toJSON());
-            }
-        });
-        this.model.bind('remove', function(user, users) {
-            var matches = users.where({
-                uid: user.get('uid'),
-                room: user.get('room')
-            })
-            if (matches.length < 1) {
-                self.remove(user.get('uid'));
-            }
-        });
-        this.model.bind('change', function(user, users) {
-            self.update(user.toJSON());
-        });
-        this.model.bind('reset', function() {
-            self.empty();
-        });
-        //
-        // User profile update
-        //
-        self.options.notifications.on('updateuser', function(profile) {
-            var matches = self.model.where({
-                uid: profile.id
-            })
-            _.each(matches, function(user) {
-                user.set(profile);
-            });
-        });
-    },
-    count: function(count) {
-        this.$el.closest('.item-list').find('.count').text(count);
-    },
-    add: function(user) {
-        var html = Mustache.to_html(this.template, user);
-        this.$el.append(html);
-    },
-    remove: function(id) {
-        this.$('.user[data-uid=' + id + ']').remove();
-    },
-    update: function(user) {
-        var $user = this.$('.user[data-uid=' + user.id + ']');
-        $user.toggleClass('has-status', user.status && user.status.length > 0);
-        $user.find('.status').text(user.status);
-    },
-    empty: function() {
-        this.$el.empty();
     }
 });
 
@@ -281,7 +183,6 @@ var RoomView = Backbone.View.extend({
     lastMessageOwner: false,
     lastMessageTime: false,
     scrollLocked: true,
-    knownUsers: {},
     initialize: function() {
         var self = this;
         //
@@ -290,14 +191,9 @@ var RoomView = Backbone.View.extend({
         this.template = $('#js-tmpl-room').html();
         this.messageTemplate = $('#js-tmpl-message').html();
         this.notifications = this.options.notifications;
-        this.user = this.options.user;
         this.plugins = this.options.plugins;
         //
         // Subviews
-        this.userlist = new UserListView({
-            notifications: this.notifications,
-            model: this.model.users
-        });
         this.filelist = new FileListView({
             notifications: this.notifications,
             model: this.model.files,
@@ -319,22 +215,6 @@ var RoomView = Backbone.View.extend({
             // We're debouncing the scrolldown for performance
             self.addMessage(message, true);
         });
-        this.model.users.bind('add remove', function(user, users) {
-            //
-            // Nick Complete
-            //
-            var user = user.toJSON();
-            self.knownUsers[user.uid] = {
-                id: user.uid,
-                key: user.safeName,
-                name: user.name,
-                avatar: user.avatar
-            }
-            self.$('.entry textarea').atwho({
-                at: '@',
-                data: _.toArray(self.knownUsers)
-            });
-        });
         //
         // Window Events
         //
@@ -355,7 +235,6 @@ var RoomView = Backbone.View.extend({
         //
         // Set subview elements
         //
-        this.userlist.setElement(this.$('.user-list'));
         this.filelist.setElement(this.$('.files'));
         //
         // Render subviews
@@ -386,15 +265,6 @@ var RoomView = Backbone.View.extend({
                 data: emotes,
                 limit: 8
             });
-        });
-        //
-        // Nick complete
-        //
-        this.$('.entry textarea').atwho({
-            at: '@',
-            tpl: '<li data-value="${key}"><img src="https://www.gravatar.com/avatar/${avatar}?s=20" height="20" width="20" /> ${name} <small>${key}</small></li>',
-            data: _.toArray(this.knownUsers),
-            limit: 4
         });
         return this.$el;
     },
@@ -441,13 +311,11 @@ var RoomView = Backbone.View.extend({
     },
     addMessage: function(message, debounce) {
         // Is this a fragment or new message?
-        message.fragment = this.lastMessageOwner === message.owner
+        message.fragment = false
           // Was the last message under 5 minutes ago?
-          && moment(message.posted).diff(moment(this.lastMessagePosted), 'minutes') < 5;
-        // I think this has my name on it
-        message.own = this.user.id === message.owner;
+          // && moment(message.posted).diff(moment(this.lastMessagePosted), 'minutes') < 5;
         // Check to see if we've been mentioned
-        message.mentioned = message.text.match(new RegExp('\\@' + this.user.get('safeName') + '\\b', 'i')) ? true : false;
+        message.mentioned = false;
         // Smells like pasta
         message.paste = message.text.match(/\n/ig) ? true : false;
         // Convert server time to friendly version of local time
@@ -750,7 +618,7 @@ var WindowTitleView = Backbone.View.extend({
             //
             var icon = 'https://www.gravatar.com/avatar/' + message.avatar + '?s=50'
             var title = message.name + ' in ' + message.roomName
-            var mention = message.text.match(new RegExp('\\@' + self.options.user.get('safeName') + '\\b', 'i')) ? true : false
+            var mention = false
 
             if (notify.isSupported && notify.permissionLevel() == notify.PERMISSION_GRANTED) {
                 var notification = notify.createNotification(title, {
@@ -857,7 +725,6 @@ var ClientView = Backbone.View.extend({
         // Vars
         //
         this.config = this.options.config;
-        this.user = this.options.user;
         this.availableRooms = this.options.availableRooms;
         this.rooms = this.options.rooms;
         this.notifications = this.options.notifications;
@@ -878,7 +745,6 @@ var ClientView = Backbone.View.extend({
         this.windowTitle = new WindowTitleView({
             config: this.config,
             notifications: this.notifications,
-            user: this.user
         });
         this.experimentalFeatures = new ExperimentalFeaturesView();
         //
@@ -902,7 +768,6 @@ var ClientView = Backbone.View.extend({
         this.rooms.bind('add', function(room) {
             self.tabs.add(new RoomView({
                 notifications: self.notifications,
-                user: self.user,
                 model: room,
                 plugins: self.plugins
             }));

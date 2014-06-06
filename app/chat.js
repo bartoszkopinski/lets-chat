@@ -35,83 +35,9 @@ var ChatServer = function (config, server, sessionStore) {
         this.io.set('log level', 0);
 
         //
-        // Authorization
-        //
-        this.io.set('authorization', function(data, accept) {
-            // Auth via socket params
-            if (data.query.username && data.query.password) {
-                models.user.findOne({
-                    'email': data.query.username
-                }).exec(function(err, user) {
-                    if (err) {
-                        // Woops
-                        accept(null, false);
-                        return;
-                    }
-                    var hashedPassword = hash.sha256(data.query.password, self.config.password_salt);
-                    if (user && hashedPassword === user.password) {
-                        data.user = user;
-                        accept(null, true);
-                        return;
-                    }
-                    accept(null, false);
-                    return;
-                });
-                return;
-            }
-            // Auth via web session
-            (passportSocketIO.authorize({
-                key: 'express.sid',
-                store: sessionStore,
-                secret: self.config.cookie_secret,
-                success: function(data, accept) {
-                    accept(null, true);
-                }
-            }))(data, accept);
-        });
-
-        //
         // Connection
         //
         this.io.sockets.on('connection', function(client) {
-
-            var userData = client.handshake.user || false;
-
-            if (!userData) {
-                //
-                // Sessions be messin' up bro
-                //
-                return;
-            }
-
-            //
-            // Assign Client Profile
-            //
-            client.set('profile', {
-                cid: hash.md5(client.id),
-                id: userData._id,
-                email: userData.email,
-                firstName: userData.firstName,
-                lastName: userData.lastName,
-                displayName: userData.displayName,
-                joined: userData.joined,
-                avatar: hash.md5(userData.email),
-                status: userData.status
-            });
-
-            //
-            // Who is me bro
-            //
-            client.on('user:whoami', function() {
-                client.get('profile', function(err, profile) {
-                    if (err) {
-                        // Oh man
-                        return;
-                    }
-                    profile.safeName = profile.displayName.replace(/\W/g, '');
-                    client.emit('user:whoami', profile);
-                });
-            });
 
             //
             // Message History
@@ -134,7 +60,6 @@ var ChatServer = function (config, server, sessionStore) {
                 }
                 query
                   .sort({ posted: -1 })
-                  .populate('owner').limit(150)
                   .exec(function (err, docs) {
                     if (err) {
                         // Couldn't get message or something
@@ -146,9 +71,6 @@ var ChatServer = function (config, server, sessionStore) {
                             messages.push({
                                 room: message.room,
                                 id: message._id,
-                                owner: message.owner._id,
-                                avatar: hash.md5(message.owner.email),
-                                name: message.owner.displayName,
                                 text: message.text,
                                 posted: message.posted,
                             });
@@ -170,7 +92,6 @@ var ChatServer = function (config, server, sessionStore) {
             client.on('room:messages:new', function(data) {
                 var message = new models.message({
                     room: data.room,
-                    owner: userData._id,
                     text: data.text
                 });
                 message.save(function(err, message) {
@@ -180,9 +101,6 @@ var ChatServer = function (config, server, sessionStore) {
                     }
                     var outgoingMessage = {
                         id: message._id,
-                        owner: message.owner,
-                        avatar: hash.md5(userData.email),
-                        name: userData.displayName,
                         text: message.text,
                         posted: message.posted,
                         room: message.room
@@ -229,49 +147,7 @@ var ChatServer = function (config, server, sessionStore) {
                             description: room.description
                         });
                     }
-                    // Hey everyone, look who it is
-                    client.get('profile', function(err, profile) {
-                        if (err) {
-                            // Oh shit
-                            return;
-                        }
-                        var user = {
-                            room: id,
-                            id: profile.cid,
-                            uid: profile.id,
-                            avatar: profile.avatar,
-                            name: profile.displayName,
-                            status: profile.status,
-                            safeName: profile.displayName.replace(/\W/g, '')
-                        }
-                        self.io.sockets.in(id).emit('room:users:new', user);
-                        self.io.sockets.emit('rooms:users:new', user)
-                    });
                 });
-            });
-
-            //
-            // Get Room Users
-            //
-            client.on('room:users:get', function(query) {
-                _.each(self.io.sockets.clients(query.room), function(user) {
-                    user.get('profile', function(err, profile) {
-                        if (err) {
-                            // What the what
-                            return;
-                        }
-                        client.emit('room:users:new', {
-                            room: query.room,
-                            id: profile.cid,
-                            uid: profile.id,
-                            avatar: profile.avatar,
-                            name: profile.displayName,
-                            status: profile.status,
-                            safeName: profile.displayName.replace(/\W/g, '')
-                        });
-                    });
-                });
-
             });
 
             //
@@ -279,7 +155,6 @@ var ChatServer = function (config, server, sessionStore) {
             //
             client.on('room:files:get', function(query) {
                 models.file.find({ room: query.room })
-                  .populate('owner')
                   .exec(function (err, files) {
                         if (err) {
                             // Couldn't get files or something
@@ -295,7 +170,6 @@ var ChatServer = function (config, server, sessionStore) {
                                 type: file.type,
                                 size: Math.floor(file.size / 1024),
                                 uploaded: file.uploaded,
-                                owner: file.owner.displayName,
                                 room: file.room
                             });
                         });
@@ -308,8 +182,7 @@ var ChatServer = function (config, server, sessionStore) {
             client.on('rooms:create', function(room, fn) {
               var newroom = new models.room({
                 name: room.name,
-                description: room.description,
-                owner: userData._id
+                description: room.description
               });
               newroom.save(function (err, room) {
                 if (err) {
@@ -320,7 +193,6 @@ var ChatServer = function (config, server, sessionStore) {
                     id: room._id,
                     name: room.name,
                     description: room.description,
-                    owner: room.owner,
                     lastActive: room.lastActive
                 });
               });
@@ -340,39 +212,10 @@ var ChatServer = function (config, server, sessionStore) {
                             id: room._id,
                             name: room.name,
                             description: room.description,
-                            owner: room.owner,
                             lastActive: room.lastActive
-                        });
-                         _.each(self.io.sockets.clients(room._id), function(user) {
-                            user.get('profile', function(err, profile) {
-                                if (err) {
-                                    // What the what
-                                    return;
-                                }
-                                client.emit('rooms:users:new', {
-                                    room: room._id,
-                                    id: profile.cid,
-                                    uid: profile.id,
-                                    avatar: profile.avatar,
-                                    name: profile.displayName,
-                                    safeName: profile.displayName.replace(/\W/g, '')
-                                });
-                            });
                         });
                     });
                 });
-            });
-
-            //
-            // Leave Room
-            //
-            client.on('room:leave', function(room) {
-                var user = {
-                    id: hash.md5(client.id),
-                    room: room
-                }
-                self.io.sockets.in(room).emit('room:users:leave', user);
-                self.io.sockets.emit('rooms:users:leave', user)
             });
 
             //
@@ -428,22 +271,6 @@ var ChatServer = function (config, server, sessionStore) {
                 });
             });
 
-            //
-            // Disconnect
-            //
-            client.on('disconnect', function() {
-                var rooms = self.io.sockets.manager.roomClients[client.id];
-                _.each(rooms, function(status, room) {
-                    room = room.replace('/', '');
-                    var user = {
-                        id: hash.md5(client.id),
-                        room: room
-                    }
-                    self.io.sockets.in(room).emit('room:users:leave', user);
-                    self.io.sockets.emit('rooms:users:leave', user)
-                });
-            });
-
         });
 
     };
@@ -453,19 +280,6 @@ var ChatServer = function (config, server, sessionStore) {
     //
     this.sendFile = function(file) {
         self.io.sockets.in(file.room).emit('room:files:new', file);
-    };
-
-    //
-    // Utility method to update user profiles
-    //
-    this.updateUser = function(user) {
-        self.io.sockets.emit('user:update', {
-            id: user._id,
-            name: user.displayName,
-            avatar: hash.md5(user.email),
-            safeName: user.displayName.replace(/\W/g, ''),
-            status: user.status
-        });
     };
 
     this.start = function () {

@@ -8,11 +8,6 @@ var MessageSchema = new Schema({
 		ref: 'Room',
         required: true
     },
-    owner: {
-		type: Schema.ObjectId,
-		ref: 'User',
-        required: true
-    },
     text: {
         type: String,
         required: true,
