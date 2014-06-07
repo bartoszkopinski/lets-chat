@@ -25,15 +25,6 @@ var ChatServer = require('./chat.js');
 // Models
 var models = require('./models/models.js');
 
-// TODO: We should require login on all routes
-var requireLogin = function(req, res, next) {
-    // if (req.isAuthenticated()) {
-        next();
-    // } else {
-        // res.redirect('/login?next=' + req.path);
-    // }
-};
-
 //
 // Web
 //
@@ -101,7 +92,7 @@ var Server = function(config) {
     //
     // Chat
     //
-    self.app.get('/', requireLogin, function(req, res) {
+    self.app.get('/', function(req, res) {
         var vars = {
             media_url: self.config.media_url,
             host: self.config.hostname,
@@ -131,7 +122,7 @@ var Server = function(config) {
         //
         // File uploadin'
         // TODO: Some proper error handling
-        self.app.post('/upload-file', requireLogin, function(req, res) {
+        self.app.post('/upload-file', function(req, res) {
             var moveUpload = function(path, newPath, callback) {
                 fs.readFile(path, function(err, data) {
                     fs.writeFile(newPath, data, function(err) {
@@ -245,7 +236,7 @@ var Server = function(config) {
     //
     // View files
     //
-    self.app.get('/files/:id/:name', requireLogin, function(req, res) {
+    self.app.get('/files/:id/:name', function(req, res) {
         models.file.findById(req.params.id, function(err, file) {
             if (err) {
                 // Error
@@ -260,7 +251,7 @@ var Server = function(config) {
     //
     // Transcripts
     //
-    self.app.get('/transcripts/:room', requireLogin, function(req, res) {
+    self.app.get('/transcripts/:room', function(req, res) {
         var fromDate = moment().subtract('days', 1).format("DDMMYYYY");
         var toDate = moment().format("DDMMYYYY");
 
@@ -268,7 +259,7 @@ var Server = function(config) {
         res.end();
     });
 
-    self.app.get('/transcripts/:room/from/:fromDate/to/:toDate', requireLogin, function(req, res) {
+    self.app.get('/transcripts/:room/from/:fromDate/to/:toDate', function(req, res) {
         //dates in url are in DDMMYYY format
         var dateParamPattern = /[0-9]{6}/;
 
